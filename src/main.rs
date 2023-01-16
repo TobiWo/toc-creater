@@ -2,8 +2,9 @@ mod cli;
 
 use cli::create_cli_app;
 use std::fs::{read_to_string, File};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::error::Error;
+use std::path::Path;
 
 fn main() {
     let cli_matches = create_cli_app().get_matches();
@@ -11,10 +12,25 @@ fn main() {
     let file_path_with_toc = format!("{}{}.md", &file_path.replace(".md", "_"), "toc");
 
     // Open the file in read-only mode (ignoring errors).
-    let file = File::open(file_path);
+    // let file = File::open(file_path);
     // let reader = BufReader::new(file);
 
-    // let string = read_file_to_string(&file_path);
+    let full_markdown_file = read_file_to_vec(file_path);
+
+    let toc: String = match full_markdown_file {
+        Ok(content) => {
+            for item in content.iter() {
+                println!("{}", item)
+            };
+            String::from("TST")
+        },
+        Err(error) => panic!("Problem reading the file: {:?}", error),
+    };
+
+    // for (i, item) in full_markdown_file.iter().enumerate() {
+    //     println!("{:?}", item);
+    // }
+
 
     // let mut result: Vec<TocLine> =  reader.lines()
     //     .map(|line| line.unwrap())
@@ -57,14 +73,19 @@ fn main() {
     // }
 }
 
-pub fn read_file_to_string(file_path: &str) -> Result<String, Box<dyn Error>> {
-    let file_content = read_to_string(file_path)?;
-    println!("{}", file_content);
+pub fn read_file_to_vec<R>(file_path: R) -> Result<Vec<String>, Box<dyn Error>>
+where R: AsRef<Path>, {
+    let file = File::open(file_path)?;
+    let buf = BufReader::new(file);
+    let file_content = buf.lines()
+        .enumerate()
+        .map(|(i, line)| line.expect(format!("{}: {}", "Could not parse line with number", i)))
+        .collect();
     Ok(file_content)
 }
 
-pub fn create_toc(file: &File) -> Vec<TocLine> {
-    let mut toc = read_raw_toc_lines(file); 
+pub fn create_toc(file_content: &String) -> Vec<TocLine> {
+    let mut toc = read_raw_toc_lines(file_content); 
     let mut hierarchy_count = [0; 6];
     let mut previous_hierarchy = 0;
     for item in &mut toc {
@@ -79,12 +100,10 @@ pub fn create_toc(file: &File) -> Vec<TocLine> {
     toc
 }
 
-fn read_raw_toc_lines(file: &File) -> Vec<TocLine> {
-    let reader = BufReader::new(file);
-    reader.lines()
-        .map(|line| line.unwrap())
+fn read_raw_toc_lines(file_content: &String) -> Vec<TocLine> {
+    file_content.lines()
         .filter(|line_string| line_string.starts_with("#") && line_string.matches("#").count() > 1)
-        .map(|line| TocLine {hierarchy: TocLine::get_hierarchy(&line), toc_line: line})
+        .map(|line| TocLine {hierarchy: TocLine::get_hierarchy(&line), toc_line: line.to_string()})
         .collect()
 }
 
